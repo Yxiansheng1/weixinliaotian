@@ -123,6 +123,40 @@ def test_memory() -> None:
         check("摘要进了上下文", "摘要" in mem.messages_for("张三/测试")[0]["content"])
 
 
+def test_cursor() -> None:
+    """新消息判定：id 不可靠，只能按位置+指纹。"""
+    from bot.engine import BotEngine
+
+    class M:
+        def __init__(self, attr, sender, content):
+            self.attr = attr
+            self.sender = sender
+            self.content = content
+
+    eng = BotEngine.__new__(BotEngine)
+    eng.cursors = {}
+
+    msgs = [M("system", "system", "11:11"), M("friend", "A", "在")]
+    eng.cursors["A"] = (len(msgs), eng._fp(msgs[-1]))
+
+    same = [M("system", "system", "11:11"), M("friend", "A", "在")]
+    check("没有新消息时不返回", eng._new_messages("A", same) == [])
+
+    more = same + [M("friend", "A", "吃了吗")]
+    got = eng._new_messages("A", more)
+    check("追加一条能识别", len(got) == 1 and got[0].content == "吃了吗", str([g.content for g in got]))
+
+    # 头部被裁掉（旧消息滚出去了）
+    trimmed = more[1:] + [M("friend", "A", "在忙")]
+    got2 = eng._new_messages("A", trimmed)
+    check("列表被裁剪也能识别", len(got2) == 1 and got2[0].content == "在忙", str([g.content for g in got2]))
+
+    # 完全对不上时不乱回
+    weird = [M("friend", "A", "完全不同的内容")]
+    got3 = eng._new_messages("A", weird)
+    check("对不上时本轮不回", got3 == [], str([g.content for g in got3]))
+
+
 def test_persona() -> None:
     text = "# 角色卡：阿澈\n\n26 岁，做设计。"
     check("能取到角色名", persona.persona_name(text) == "阿澈")
@@ -154,6 +188,7 @@ def test_filter() -> None:
     eng.s = S()
     eng.io = FakeIO()
     eng.seen = __import__("collections").OrderedDict()
+    eng.seen_lock = __import__("threading").Lock()
 
     class M:
         def __init__(self, **kw):
@@ -172,7 +207,8 @@ if __name__ == "__main__":
     except Exception:
         pass
     print("逻辑自测\n")
-    for fn in (test_split, test_quiet, test_clean, test_delay, test_memory, test_persona, test_filter):
+    for fn in (test_split, test_quiet, test_clean, test_delay, test_memory,
+               test_cursor, test_persona, test_filter):
         print(f"[{fn.__name__}]")
         fn()
     print()

@@ -29,6 +29,10 @@ class BotEngine:
 
         self.q: queue.Queue = queue.Queue(maxsize=200)
         self.seen: OrderedDict[str, None] = OrderedDict()
+        self.seen_lock = threading.Lock()
+        # 每个聊天一个游标：(已处理条数, 最后一条的指纹)
+        # 库给出的消息 id 在两次读取之间会变，不能用来去重，只能按位置判定
+        self.cursors: dict[str, tuple] = {}
         self.locks: dict[str, threading.Lock] = {}
         self.stop_flag = threading.Event()
         self.replied = 0
@@ -57,9 +61,14 @@ class BotEngine:
                 target=self._worker, name=f"worker-{i}", daemon=True
             ).start()
 
+        # 把启动前就存在的历史消息记为"已读"，否则一上线就会把旧消息全回一遍
+        self.prime()
+
         threading.Thread(
             target=self._listener_loop, name="wx-listener", daemon=True
         ).start()
+
+        threading.Thread(target=self._poller, name="wx-poller", daemon=True).start()
 
         mode = "LIVE 真发送" if self.s.live else "DRY-RUN 只打印"
         log.info(
@@ -93,6 +102,68 @@ class BotEngine:
         if self.q.unfinished_tasks:
             log.warning("还有 %d 条消息没处理完，直接退出", self.q.unfinished_tasks)
 
+    def _fp(self, m) -> tuple:
+        """消息指纹：用来确认"上次读到的那条"还在不在同一位置。"""
+        return (
+            getattr(m, "attr", ""),
+            getattr(m, "sender", ""),
+            (getattr(m, "content", "") or "")[:60],
+        )
+
+    def prime(self) -> None:
+        """记下每个聊天当前读到的位置。启动前的历史一条都不回。"""
+        total = 0
+        try:
+            for chat, msgs in self.io.poll_all():
+                msgs = list(msgs)
+                key = self.io.chat_key(chat)
+                self.cursors[key] = (len(msgs), self._fp(msgs[-1]) if msgs else None)
+                total += len(msgs)
+        except Exception:
+            log.exception("初始化历史消息失败，稍后轮询会自动补上")
+        log.info("已跳过启动前的 %d 条历史消息", total)
+
+    def _new_messages(self, key: str, msgs: list) -> list:
+        """按游标挑出这次的新消息。id 不可靠，只认位置。"""
+        fps = [self._fp(m) for m in msgs]
+        n, last_fp = self.cursors.get(key, (0, None))
+        start = 0
+
+        if last_fp is None:
+            start = 0
+        elif n <= len(msgs) and n > 0 and fps[n - 1] == last_fp:
+            start = n
+        else:
+            # 窗口里的消息被裁剪或重排过，从后往前找上次那条的位置
+            start = None
+            for i in range(len(fps) - 1, -1, -1):
+                if fps[i] == last_fp:
+                    start = i + 1
+                    break
+            if start is None:
+                log.warning("%s 的消息列表对不上，本轮不处理（避免重复回复）", key)
+                start = len(msgs)
+
+        self.cursors[key] = (len(msgs), fps[-1] if fps else None)
+        return msgs[start:]
+
+    def _poller(self) -> None:
+        """主动轮询每个聊天窗口的新消息。
+
+        不用库的推送回调——实测那个回调在本机不触发，
+        而且库返回的消息 id 每次读取都会变，所以按"读到第几条"判定新消息。
+        """
+        interval = float(self.s.raw["listen"].get("poll_interval", 1.5))
+        while not self.stop_flag.is_set():
+            try:
+                for chat, msgs in self.io.poll_all():
+                    key = self.io.chat_key(chat)
+                    for m in self._new_messages(key, list(msgs)):
+                        self._on_message(m, chat)
+            except Exception:
+                log.exception("轮询消息时出错")
+            time.sleep(interval)
+
     def _listener_loop(self) -> None:
         # StartListening 在不同版本里可能阻塞也可能立即返回，两种都兼容
         try:
@@ -117,6 +188,7 @@ class BotEngine:
             if not self._accept(msg, chat):
                 return
             key = self.io.chat_key(chat, msg)
+            log.info("收到新消息｜%s｜id=%s｜来源=%s", key, getattr(msg, "id", "?"), threading.current_thread().name)
             self.q.put_nowait((key, msg, chat))
         except queue.Full:
             log.warning("队列满了，丢弃一条消息")
@@ -139,13 +211,14 @@ class BotEngine:
             if self.io.nickname not in content:
                 return False
 
-        # 去重
+        # 去重：轮询和推送可能同时送来同一条，靠 id 拦住
         mid = str(getattr(msg, "id", "") or f"{content}{getattr(msg, 'sender', '')}")
-        if mid in self.seen:
-            return False
-        self.seen[mid] = None
-        if len(self.seen) > MAX_SEEN:
-            self.seen.popitem(last=False)
+        with self.seen_lock:
+            if mid in self.seen:
+                return False
+            self.seen[mid] = None
+            if len(self.seen) > MAX_SEEN:
+                self.seen.popitem(last=False)
 
         return True
 

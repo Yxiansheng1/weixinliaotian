@@ -38,24 +38,49 @@ class WeChatIO:
 
         self.wx = WeChat(ads=False, resize=True)
         info = self.wx.GetMyInfo() or {}
-        self.nickname = _pick(info, "nickname", "昵称", "name") or "我"
+        self.nickname = _pick(info, "nickname", "昵称", "name", "display_name") or "我"
+        self.chats: dict = {}
         log.info("已接入微信，当前账号：%s", self.nickname)
 
     def attach(self, name: str, callback) -> bool:
+        # 只借用 AddListenChat 打开该聊天的独立窗口；它的推送回调不可靠
+        # （启动时会重放历史消息，且对象不带 id，绕过去重），一律不用。
         try:
-            resp = self.wx.AddListenChat(nickname=name, callback=callback)
+            resp = self.wx.AddListenChat(nickname=name, callback=lambda *a, **k: None)
         except Exception:
             log.exception("监听 %s 失败（窗口没打开/昵称不对？）", name)
             return False
-        ok = bool(getattr(resp, "get", lambda *a: True)("status", True)) if hasattr(resp, "get") else True
+
+        ok = True
+        if hasattr(resp, "get"):
+            ok = resp.get("status", True) is not False
         if not ok:
             log.error("监听 %s 失败：%s", name, resp)
-        else:
-            log.info("已开始监听：%s", name)
-        return ok
+            return False
+
+        # 拿到这个聊天的独立窗口句柄，后面靠它轮询消息
+        try:
+            self.chats[name] = self.wx.GetSubWindow(name)
+        except Exception:
+            log.exception("拿到 %s 的聊天窗口失败", name)
+            return False
+
+        log.info("已开始监听：%s", name)
+        return True
+
+    def poll_all(self):
+        """逐个聊天窗口读全量消息。去重由上层按消息 id 做。"""
+        for name, chat in list(self.chats.items()):
+            try:
+                msgs = chat.GetAllMessage() or []
+            except Exception:
+                log.exception("读取 %s 的消息失败", name)
+                continue
+            yield chat, msgs
 
     def start(self) -> None:
-        self.wx.StartListening()
+        # 不用库自带的监听线程，消息全靠 poll_all 轮询
+        log.info("消息来源：主动轮询（每 %.1f 秒）", WxParam.LISTEN_INTERVAL)
 
     def send(self, chat, text: str) -> bool:
         try:
@@ -140,6 +165,9 @@ class ConsoleIO:
     def send(self, chat, text: str) -> bool:
         print(f"\n你   > {text}\n")
         return True
+
+    def poll_all(self):
+        return []
 
     def chat_key(self, chat, msg=None) -> str:
         return self.name

@@ -18,6 +18,7 @@ DEFAULTS: dict[str, Any] = {
         "contacts": [],         # 白名单：要自动回复的好友昵称（精确匹配）
         "groups": [],           # 群名：只在有人 @ 我 时回复
         "at_me_only_in_group": True,
+        "poll_interval": 1.5,   # 轮询新消息的间隔（秒）
     },
     "persona": "personas/default.md",
     "llm": {

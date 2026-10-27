@@ -20,6 +20,7 @@ listen:
   # 群聊：只在有人 @ 你 时回复。群名要和微信里一致。
   groups: []
   at_me_only_in_group: true
+  poll_interval: 1.5      # 多久查一次新消息（秒），别设太小
 
 # 角色卡，改这个文件就换了个人
 persona: personas/default.md
