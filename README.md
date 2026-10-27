@@ -10,38 +10,45 @@
 
 ---
 
-## ⚠️ 已知阻塞：微信 4.1.10 之后读不到界面
+## 微信版本：必须 4.1.8，再高就读不到界面
 
-当前机器实测：微信 **4.1.15.56** 不向 Windows 辅助功能暴露任何控件。
+**这是本项目最容易踩死的一步，先看完再装。**
 
-排查过程（可复现）：
+微信从 4.1.9 开始把主界面改成 GPU 画布自绘，只向 Windows 辅助功能上报一个窗口外壳。
+消息区、输入框、会话列表**一个控件节点都没有**，任何基于 UIAutomation 的库
+（wxauto4、pywinauto、FlaUI）都读不到消息，和配置无关。
 
-| 检查项 | 结果 |
-|---|---|
-| 微信主窗口是否存在 | 存在，hwnd 正常，类名 `Qt51514QWindowIcon`，标题「微信」 |
-| UIA 控件视图的子孙节点 | 1 个（`Pane 'Weixin'`） |
-| UIA 原始视图的子孙节点 | 1 个（同上，没有更多） |
-| 子 HWND `MMUIRenderSubWindowHW` 的 UIA 树 | 0 个 |
-| MSAA（`AccessibleObjectFromWindow`）子节点数 | 2 |
-| 开启 Windows 讲述人后重查 | 仍是 2，没有恢复 |
-| 窗口切到前台后重查 | 仍是 2 |
+本机实测三个版本，同一台机器、同一套代码：
 
-结论：微信 4.1.x 把界面整块画在 GPU 画布 `MMUIRenderSubWindowHW` 上，只上报窗口外壳。
-消息区、输入框、会话列表**一个节点都没有**，任何基于 UIAutomation 的库（wxauto4、
-pywinauto、FlaUI）在这个版本上都读不到消息。这不是配置问题。
+| 微信版本 | 登录窗口控件树 | 主窗口控件树 | 能否用 |
+|---|---|---|---|
+| **4.1.8.107** | 28 个节点 | **65 个节点（`mmui::MainWindow`）** | ✅ 可用 |
+| 4.1.9.57 | 26 个节点 | 2 个空壳 | ❌ 不可用 |
+| 4.1.15.56 | 2 个空壳 | 2 个空壳 | ❌ 不可用 |
 
-社区对照：4.1.9.62 及更早版本的 UIA 树是正常的，4.1.10 之后开始失效
-（pywechat 仓库 issue #270 有同样的记录）。
+排查时确认过的其他事实（免得再试一遍）：
 
-因此目前只有两条路能跑通：
+- 主窗口在 Win32 层面是存在的（`Qt51514QWindowIcon`，标题「微信」），不是找不到窗口
+- 切到前台、`SetFocus`、开 Windows 讲述人、走 MSAA `AccessibleObjectFromWindow`，
+  都不能让 4.1.9+ 的控件树长出来
+- 子窗口 `MMUIRenderSubWindowHW` 的 UIA 树也是 0 个节点
 
-1. **降级微信到 4.1.9.x 或更早** —— 库就是为那些版本写的，改动最小。代价：需要可信的
-   历史安装包，且要关掉自动更新，降级后聊天记录有迁移风险。
-2. **改成截屏 OCR** —— 不依赖控件树，当前版本就能跑。代价：慢、可能认错字、窗口不能
-   被遮挡或最小化，界面改版就要重调。
+所以 wxauto4 文档写「适用最新 4.1.8」是准确的，不要相信「4.1.9 也能用」的说法。
 
-`bot/` 里的代码（人设、记忆、拟人化、模型调用、拆句）与接入方式无关，换哪条路都能直接复用，
-只需要替换 `bot/wechat_client.py`。
+### 降级与锁版本
+
+1. 退出微信，先备份 `%USERPROFILE%\Documents\xwechat_files`（或你自定义过的数据目录）
+2. 官方 CDN 只留最新版，旧安装包要用 [web.archive.org](https://web.archive.org) 存快照。
+   取到的文件必须做两道验证，都过才能装：
+   - MD5 对上档案里 `x-archive-orig-x-cos-meta-md5` 头的值（这是腾讯 COS 的原始值）
+   - `Get-AuthenticodeSignature` 状态为 `Valid`，签发者 `Tencent Technology (Shenzhen) Company Limited`
+3. 装完立刻堵更新，三件事缺一不可：
+   - 删掉 `%APPDATA%\Tencent\xwechat\update\download` 里已下好的更新包
+     （**最容易漏**：包一旦下好，光改更新程序名没用，下次启动会被直接应用）
+   - 把 `WeixinUpdate.exe` 删掉，用**同名目录**占住这个名字
+   - `icacls` 拒绝当前用户对 `%APPDATA%\Tencent\xwechat\update` 的写权限
+
+不锁版本的话，微信会在登录后自动升回最新版，之前所有工作白做。
 
 ---
 
