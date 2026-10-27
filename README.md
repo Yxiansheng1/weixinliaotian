@@ -122,7 +122,9 @@ python run.py
 ```
 wechat-bot/
 ├── run.py               启动入口
-├── probe.py             开跑前自检
+├── probe.py             开跑前自检（--models 查可用模型）
+├── bench_models.py      换模型时对比谁更像人
+├── selftest.py          纯逻辑自测，不联网
 ├── config.yaml          所有配置
 ├── .env                 API Key（自己建，别提交）
 ├── bot/

@@ -66,6 +66,9 @@ def test_clean() -> None:
     check("默认去掉括号动作", clean("我在忙（叹气）真的") == "我在忙真的")
     check("允许时保留动作", "叹气" in clean("我在忙（叹气）", allow_actions=True))
     check("去掉列表符号", clean("- 吃饭\n- 睡觉") .count("\n") == 1)
+    check("斜杠分隔转多行", clean("又是十点 / 老板不当人 / 吃了吗") == "又是十点\n老板不当人\n吃了吗")
+    check("竖线分隔转多行", clean("嗯 | 那你忙完吃饭 | 别忘了") == "嗯\n那你忙完吃饭\n别忘了")
+    check("单个斜杠不动", clean("周一/周二都行") == "周一/周二都行")
 
 
 def test_delay() -> None:

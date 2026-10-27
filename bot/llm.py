@@ -80,6 +80,17 @@ _PREFIX = re.compile(r"^[（(]?(我|阿澈|回复)?[）)]?\s*[:：]\s*")
 _MD = re.compile(r"(\*\*|__|\*|`{1,3}|^#{1,6}\s+|^[-*+]\s+|^\d+[.、]\s+)", re.MULTILINE)
 _QUOTES = re.compile(r'^["“”「」『』\'](.*)["“”「」『』\']$', re.DOTALL)
 _ACTION = re.compile(r"[（(][^（()）]{1,20}[）)]")
+# 模型爱用斜杠把"几条消息"串成一行，中文聊天里几乎不会这么写，直接当换行处理
+_SEP = re.compile(r"\s*(?:/|｜|\||丨)\s*")
+
+
+def _as_separators(t: str) -> str:
+    # 只在斜杠起分隔作用时才替换：两侧至少有一处是空白，或者连续出现多次
+    if len(_SEP.findall(t)) >= 2 and (" / " in t or "|" in t or "丨" in t):
+        t = _SEP.sub("\n", t)
+    elif " / " in t:
+        t = t.replace(" / ", "\n")
+    return re.sub(r"\n{3,}", "\n\n", t).strip()
 
 
 def clean(text: str, allow_actions: bool = False) -> str:
@@ -93,5 +104,6 @@ def clean(text: str, allow_actions: bool = False) -> str:
     if not allow_actions:
         t = _ACTION.sub("", t)
     t = _MD.sub("", t)
+    t = _as_separators(t)
     t = re.sub(r"\n{3,}", "\n\n", t).strip()
     return t

@@ -23,7 +23,7 @@ DEFAULTS: dict[str, Any] = {
     "llm": {
         "provider": "relay",
         "base_url": "https://www.tokenav.ai/v1",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-pro",
         "temperature": 1.1,
         "max_tokens": 300,
         "api_key_env": "DEEPSEEK_API_KEY",
