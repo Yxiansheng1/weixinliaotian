@@ -25,6 +25,13 @@ listen:
 # 角色卡，改这个文件就换了个人
 persona: personas/default.md
 
+# 给不同的人不同的人设：昵称 → 角色卡文件
+# 没列出来的人用上面的默认角色卡
+# persona_map:
+#   张三: personas/default.md
+#   小满: personas/lover.md
+persona_map: {}
+
 llm:
   provider: relay              # 官方直连 / 中转站都行，走 OpenAI 兼容协议
   base_url: https://www.tokenav.ai/v1

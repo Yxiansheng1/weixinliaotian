@@ -159,12 +159,73 @@ python run.py
 
 ---
 
+## 多用户记忆管理
+
+每个聊天对象一份独立记忆，文件在 `data/memory/<昵称>.json`，
+互不影响：清空一个人不会动到别人，改一个人的人设也不会串。
+
+### 配置里怎么用
+
+```yaml
+listen:
+  contacts:          # 同时监听多个人
+    - 张三
+    - 李四
+
+persona: personas/default.md   # 没单独指定的人用这个
+
+persona_map:                   # 给特定的人换人设
+  李四: personas/lover.md
+```
+
+### 命令行怎么管
+
+```powershell
+python memory_cli.py list                     # 谁有记忆、聊了多少、最近什么时候
+python memory_cli.py stats                    # 总量：人数、消息数、占多少磁盘
+python memory_cli.py show 张三 --limit 20     # 看某个人最近聊了什么
+python memory_cli.py summary 张三             # 只看摘要
+python memory_cli.py summarize 张三 --force   # 立刻压缩（不等阈值）
+python memory_cli.py export 张三 --out 张三.md
+python memory_cli.py persona 张三 personas/lover.md   # 单独给这个人换角色卡
+python memory_cli.py persona 张三 -           # 取消，恢复默认
+python memory_cli.py rename 旧昵称 新昵称      # 微信改名后迁移记忆
+python memory_cli.py clear 张三 --yes         # 清空对话，保留档案
+python memory_cli.py delete 张三 --yes        # 整个删掉
+```
+
+只读命令（`list` / `stats` / `show` / `summary` / `export`）机器人跑着也能用。
+`clear` / `delete` / `rename` 会改文件，建议先停机器人。
+
+### 记忆里存了什么
+
+```json
+{
+  "chat": "张三",
+  "summary": "结构化笔记：关系、对方的近况、没说完的事、情绪、称呼梗",
+  "messages": [{"role": "user", "content": "…", "ts": 1761…}],
+  "meta": {"first_seen": 1761…, "last_seen": 1761…, "persona": "personas/lover.md"}
+}
+```
+
+- 摘要不是流水账，是能用来"接着聊"的笔记，压缩时按这个目标生成
+- `meta.persona` 是给这个人单独指定的人设，优先于 `config.yaml` 里的 `persona_map`
+- 消息数超过 `memory.summarize_after` 自动压缩一半，旧的在摘要里，新的留原文
+
+### 隐私提醒
+
+`data/memory/` 里是**真实聊天内容**，已经在 `.gitignore` 里排除，别提交、别外传。
+要给别人看效果，用 `export` 导一份，自己检查过再发。
+
+---
+
 ## 目录结构
 
 ```
 wechat-bot/
 ├── run.py               启动入口
 ├── probe.py             开跑前自检（--models 查可用模型）
+├── memory_cli.py        多用户记忆管理（列表/查看/导出/清理/按人设）
 ├── bench_models.py      换模型时对比谁更像人
 ├── selftest.py          纯逻辑自测，不联网
 ├── config.yaml          所有配置

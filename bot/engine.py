@@ -8,6 +8,7 @@ import random
 import threading
 import time
 from collections import OrderedDict
+from pathlib import Path
 
 from . import humanize, llm as llm_mod, persona
 from .config import Settings
@@ -26,6 +27,8 @@ class BotEngine:
 
         self.persona_text = persona.load_persona(s.persona_path)
         self.persona_name = persona.persona_name(self.persona_text, s.persona_path.stem)
+        # 每个聊天对象的人设：聊天名 → (角色卡正文, 角色名, 文件)
+        self._persona_cache: dict[str, tuple[str, str, Path]] = {}
 
         self.q: queue.Queue = queue.Queue(maxsize=200)
         self.seen: OrderedDict[str, None] = OrderedDict()
@@ -248,6 +251,27 @@ class BotEngine:
                 finally:
                     self.q.task_done()
 
+    def _persona_for(self, chat: str) -> tuple[str, str, Path]:
+        """这个聊天对象用哪张角色卡：config 指定 > 记忆里记录的 > 默认。"""
+        if chat in self._persona_cache:
+            return self._persona_cache[chat]
+
+        path = self.s.persona_for(chat)
+        if path is None:
+            rel = self.memory.get_persona(chat)
+            if rel:
+                cand = (self.s.root / rel).resolve()
+                if cand.exists():
+                    path = cand
+        if path is None:
+            path = self.s.persona_path
+
+        text = persona.load_persona(path)
+        name = persona.persona_name(text, path.stem)
+        self._persona_cache[chat] = (text, name, path)
+        log.info("%s 使用角色卡：%s（%s）", chat, name, path.name)
+        return self._persona_cache[chat]
+
     def _handle(self, key: str, msg, chat) -> None:
         content = (getattr(msg, "content", "") or "").strip()
         if self.io.is_group(chat):
@@ -268,9 +292,10 @@ class BotEngine:
         log.info("← %s：%s", key, content)
         self.memory.append(key, "user", content)
 
+        p_text, p_name, _p_file = self._persona_for(key)
         system = persona.build_system(
-            self.persona_text,
-            self.persona_name,
+            p_text,
+            p_name,
             key,
             self.io.is_group(chat),
         )

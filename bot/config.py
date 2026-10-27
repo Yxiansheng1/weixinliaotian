@@ -21,6 +21,9 @@ DEFAULTS: dict[str, Any] = {
         "poll_interval": 1.5,   # 轮询新消息的间隔（秒）
     },
     "persona": "personas/default.md",
+    # 给不同的人不同的人设：昵称 → 角色卡文件（相对项目根目录）
+    # 没写的人用上面的默认角色卡
+    "persona_map": {},
     "llm": {
         "provider": "relay",
         "base_url": "https://www.tokenav.ai/v1",
@@ -111,6 +114,14 @@ class Settings:
 
     def targets(self) -> list[str]:
         return self.contacts + self.groups
+
+    def persona_for(self, chat: str) -> Path | None:
+        """这个聊天对象该用哪张角色卡。没单独配就返回 None（用默认的）。"""
+        p = (self.raw.get("persona_map") or {}).get(chat)
+        if not p:
+            return None
+        path = (self.root / p).resolve()
+        return path if path.exists() else None
 
 
 def load(config_path: Path | str | None = None) -> Settings:

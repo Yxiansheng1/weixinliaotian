@@ -120,13 +120,70 @@ def test_memory() -> None:
         data = mem.load("张三/测试")
         check("摘要已生成", bool(data["summary"]))
         check("历史被裁短", len(data["messages"]) <= 6, str(len(data["messages"])))
-        check("摘要进了上下文", "摘要" in mem.messages_for("张三/测试")[0]["content"])
+        check("摘要进了上下文", "最近在聊工作" in mem.messages_for("张三/测试")[0]["content"])
+
+
+def test_memory_admin() -> None:
+    """多用户管理：列表、统计、清空、改名、导出、按人设。"""
+    import tempfile as _tf
+
+    from bot.memory import MemoryStore as MS
+
+    with _tf.TemporaryDirectory() as td:
+        s = MS(Path(td), max_turns=5, summarize_after=10)
+
+        check("空库没有聊天", s.chats() == [])
+
+        s.append("张三", "user", "在吗")
+        s.append("张三", "assistant", "在")
+        s.append("小满", "user", "今天好累")
+        s.append("小满", "assistant", "那你早点睡")
+
+        names = s.chats()
+        check("两个人都在列表里", set(names) == {"张三", "小满"}, str(names))
+
+        st = s.stats("张三")
+        check("统计消息数", st["messages"] == 2, str(st))
+        check("统计文件存在", st["bytes"] > 0)
+
+        ov = s.overview()
+        check("总览汇总正确", ov["chats"] == 2 and ov["messages"] == 4, str(ov))
+
+        # 每人独立：清空一个不影响另一个
+        s.clear("张三")
+        check("清空后消息归零", s.stats("张三")["messages"] == 0)
+        check("另一个人不受影响", s.stats("小满")["messages"] == 2)
+        check("清空保留档案", s.stats("张三")["first_seen"] is not None)
+
+        # 改名迁移
+        s.append("小满", "user", "睡了吗")
+        check("改名成功", s.rename("小满", "小满满"))
+        check("新名字有记忆", s.stats("小满满")["messages"] == 3)
+        check("旧名字没了", "小满" not in s.chats(), str(s.chats()))
+
+        # 单独人设
+        s.set_persona("小满满", "personas/lover.md")
+        check("人设记住了", s.get_persona("小满满") == "personas/lover.md")
+        s.set_persona("小满满", "")
+        check("人设能取消", s.get_persona("小满满") == "")
+
+        # 导出
+        md = s.export_markdown("小满满")
+        check("导出含标题", "小满满" in md)
+        check("导出含对话", "今天好累" in md)
+
+        # 删除
+        check("删除成功", s.delete("小满满"))
+        check("删除后不在列表", "小满满" not in s.chats(), str(s.chats()))
+
+        # 特殊昵称能安全落盘
+        s.append("a/b:c*d", "user", "测试")
+        check("含符号的昵称也能存", "a/b:c*d" in s.chats(), str(s.chats()))
 
 
 def test_cursor() -> None:
     """新消息判定：id 不可靠、列表会裁剪，只能靠指纹序列滑动比对。"""
     from bot.engine import BotEngine
-
     class M:
         def __init__(self, attr, sender, content):
             self.attr = attr
@@ -212,7 +269,7 @@ if __name__ == "__main__":
         pass
     print("逻辑自测\n")
     for fn in (test_split, test_quiet, test_clean, test_delay, test_memory,
-               test_cursor, test_persona, test_filter):
+               test_memory_admin, test_cursor, test_persona, test_filter):
         print(f"[{fn.__name__}]")
         fn()
     print()
