@@ -1,0 +1,51 @@
+# ============================================
+#  微信陪聊机器人配置
+#  改完不用重启微信，但要重启本程序（Ctrl+C 再 python run.py）
+# ============================================
+
+# dry_run = 只打印不发送（先用这个试）
+# live    = 真的发到微信
+mode: dry_run
+
+listen:
+  # 只回这些人。必须和微信里的昵称一字不差。
+  # 写法：
+  #   contacts:
+  #     - 张三
+  #     - 李四
+  # 留空的话程序会拒绝启动——故意这样，防止误回所有人。
+  contacts: []
+
+  # 群聊：只在有人 @ 你 时回复。群名要和微信里一致。
+  groups: []
+  at_me_only_in_group: true
+
+# 角色卡，改这个文件就换了个人
+persona: personas/default.md
+
+llm:
+  provider: deepseek
+  base_url: https://api.deepseek.com
+  model: deepseek-chat
+  temperature: 1.1
+  max_tokens: 300
+  api_key_env: DEEPSEEK_API_KEY   # 去 .env 里填这个变量
+  timeout: 60
+
+humanize:
+  read_delay: [0.6, 1.8]      # 收到后先"看一眼"的秒数
+  chars_per_second: 3.2       # 打字速度，越小回得越慢
+  min_typing: 0.8
+  max_typing: 7.0
+  split_long_reply: true      # 长回复拆成几条发，更像真人
+  max_bubble_chars: 55        # 每条最多多少字
+  bubble_gap: [0.7, 1.8]      # 两条之间的停顿
+  reply_probability: 1.0      # 0.9 = 有一成概率装没看见
+  quiet_hours: []             # 例如 ["01:00", "07:30"]
+  allow_actions: false        # 允许 (括号旁白) 这种角色扮演写法
+
+memory:
+  max_turns: 24      # 每次喂给模型的历史轮数
+  summarize_after: 48 # 超过多少条就压成摘要，防止人设崩坏
+
+log_level: INFO
