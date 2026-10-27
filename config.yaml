@@ -48,7 +48,7 @@ humanize:
   min_typing: 0.8
   max_typing: 7.0
   split_long_reply: true      # 长回复拆成几条发，更像真人
-  max_bubble_chars: 55        # 每条最多多少字
+  max_bubble_chars: 45        # 每条最多多少字
   max_bubbles: 3              # 一条回复最多拆成几条（超出的并进最后一条，不丢字）
   bubble_gap: [0.7, 1.8]      # 两条之间的停顿
   reply_probability: 1.0      # 0.9 = 有一成概率装没看见

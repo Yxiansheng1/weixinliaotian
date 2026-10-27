@@ -1,4 +1,4 @@
-"""配置加载：config.yaml 打底，缺的字段用默认值补齐。"""
+﻿"""配置加载：config.yaml 打底，缺的字段用默认值补齐。"""
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ DEFAULTS: dict[str, Any] = {
         "min_typing": 0.8,
         "max_typing": 7.0,
         "split_long_reply": True,      # 长回复拆成多条发
-        "max_bubble_chars": 55,
+        "max_bubble_chars": 45,
         "max_bubbles": 3,              # 一条回复最多拆成几条
         "bubble_gap": [0.7, 1.8],      # 两条消息之间的间隔
         "reply_probability": 1.0,      # <1 表示偶尔"没看见"

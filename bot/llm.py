@@ -1,4 +1,4 @@
-"""大模型调用。走 OpenAI 兼容协议，DeepSeek / Kimi / 通义 / OpenAI 都能用。"""
+﻿"""大模型调用。走 OpenAI 兼容协议，DeepSeek / Kimi / 通义 / OpenAI 都能用。"""
 
 from __future__ import annotations
 
@@ -52,8 +52,8 @@ class ChatLLM:
         }
         # 中转站对"多出来的参数"容忍度不一，个别会直接 400，做成可关
         if self.cfg.get("penalties", True):
-            params["presence_penalty"] = float(self.cfg.get("presence_penalty", 0.3))
-            params["frequency_penalty"] = float(self.cfg.get("frequency_penalty", 0.3))
+            params["presence_penalty"] = float(self.cfg.get("presence_penalty", 0.5))
+            params["frequency_penalty"] = float(self.cfg.get("frequency_penalty", 0.5))
         if self._send_reasoning and not self._reasoning_off:
             params["reasoning_effort"] = self.cfg["reasoning_effort"]
 
