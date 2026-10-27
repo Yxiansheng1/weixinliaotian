@@ -90,6 +90,7 @@ def main() -> int:
         from wxauto4 import WeChat, WxParam
 
         WxParam.TELEMETRY_ENABLED = False
+        WxParam.ENABLE_FILE_LOGGER = False
         wx = WeChat(ads=False, resize=False)
         info = wx.GetMyInfo() or {}
         name = info.get("nickname") or info.get("昵称") or "?"

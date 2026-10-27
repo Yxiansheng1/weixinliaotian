@@ -31,8 +31,9 @@ class WeChatIO:
     """真机接入。"""
 
     def __init__(self) -> None:
-        # 这个库默认会上报遥测，先关掉
+        # 这个库默认会上报遥测，还会把日志写进当前目录，两个都关掉
         WxParam.TELEMETRY_ENABLED = False
+        WxParam.ENABLE_FILE_LOGGER = False
         WxParam.LISTEN_INTERVAL = 1
 
         self.wx = WeChat(ads=False, resize=True)
