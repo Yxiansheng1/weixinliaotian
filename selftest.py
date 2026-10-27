@@ -124,7 +124,7 @@ def test_memory() -> None:
 
 
 def test_cursor() -> None:
-    """新消息判定：id 不可靠，只能按位置+指纹。"""
+    """新消息判定：id 不可靠、列表会裁剪，只能靠指纹序列滑动比对。"""
     from bot.engine import BotEngine
 
     class M:
@@ -136,25 +136,29 @@ def test_cursor() -> None:
     eng = BotEngine.__new__(BotEngine)
     eng.cursors = {}
 
-    msgs = [M("system", "system", "11:11"), M("friend", "A", "在")]
-    eng.cursors["A"] = (len(msgs), eng._fp(msgs[-1]))
+    base = [M("system", "system", "11:11"), M("friend", "A", "在")]
+    eng.cursors["A"] = (len(base), [eng._fp(m) for m in base[-3:]])
 
-    same = [M("system", "system", "11:11"), M("friend", "A", "在")]
-    check("没有新消息时不返回", eng._new_messages("A", same) == [])
+    check("没有新消息时不返回", eng._new_messages("A", list(base)) == [])
 
-    more = same + [M("friend", "A", "吃了吗")]
+    more = base + [M("friend", "A", "吃了吗")]
     got = eng._new_messages("A", more)
     check("追加一条能识别", len(got) == 1 and got[0].content == "吃了吗", str([g.content for g in got]))
 
-    # 头部被裁掉（旧消息滚出去了）
+    # 头部被裁掉（旧消息滚出去），上次的尾巴仍在但不从 0 开始
     trimmed = more[1:] + [M("friend", "A", "在忙")]
     got2 = eng._new_messages("A", trimmed)
     check("列表被裁剪也能识别", len(got2) == 1 and got2[0].content == "在忙", str([g.content for g in got2]))
 
+    # 连续两条一起到
+    two = trimmed + [M("friend", "A", "睡了"), M("friend", "A", "晚安")]
+    got3 = eng._new_messages("A", two)
+    check("多条一起到都能识别", [g.content for g in got3] == ["睡了", "晚安"], str([g.content for g in got3]))
+
     # 完全对不上时不乱回
     weird = [M("friend", "A", "完全不同的内容")]
-    got3 = eng._new_messages("A", weird)
-    check("对不上时本轮不回", got3 == [], str([g.content for g in got3]))
+    got4 = eng._new_messages("A", weird)
+    check("对不上时本轮不回", got4 == [], str([g.content for g in got4]))
 
 
 def test_persona() -> None:

@@ -117,34 +117,42 @@ class BotEngine:
             for chat, msgs in self.io.poll_all():
                 msgs = list(msgs)
                 key = self.io.chat_key(chat)
-                self.cursors[key] = (len(msgs), self._fp(msgs[-1]) if msgs else None)
+                self.cursors[key] = (
+                    len(msgs),
+                    [self._fp(m) for m in msgs[-3:]],
+                )
                 total += len(msgs)
         except Exception:
             log.exception("初始化历史消息失败，稍后轮询会自动补上")
         log.info("已跳过启动前的 %d 条历史消息", total)
 
     def _new_messages(self, key: str, msgs: list) -> list:
-        """按游标挑出这次的新消息。id 不可靠，只认位置。"""
-        fps = [self._fp(m) for m in msgs]
-        n, last_fp = self.cursors.get(key, (0, None))
-        start = 0
+        """按游标挑出这次的新消息。
 
-        if last_fp is None:
+        id 不可靠、列表会滚动裁剪，所以用"最近几条的指纹序列"做滑动比对：
+        在新列表里找到上次那段的落点，后面就是新消息。
+        """
+        fps = [self._fp(m) for m in msgs]
+        n, tail = self.cursors.get(key, (0, []))
+
+        if not tail:
             start = 0
-        elif n <= len(msgs) and n > 0 and fps[n - 1] == last_fp:
-            start = n
         else:
-            # 窗口里的消息被裁剪或重排过，从后往前找上次那条的位置
             start = None
-            for i in range(len(fps) - 1, -1, -1):
-                if fps[i] == last_fp:
-                    start = i + 1
+            # 先用最长的重叠去比，匹配不上再缩短
+            for k in range(min(len(tail), len(fps)), 0, -1):
+                sub = tail[-k:]
+                for i in range(len(fps) - k, -1, -1):
+                    if fps[i : i + k] == sub:
+                        start = i + k
+                        break
+                if start is not None:
                     break
             if start is None:
                 log.warning("%s 的消息列表对不上，本轮不处理（避免重复回复）", key)
                 start = len(msgs)
 
-        self.cursors[key] = (len(msgs), fps[-1] if fps else None)
+        self.cursors[key] = (len(msgs), fps[-3:] if fps else [])
         return msgs[start:]
 
     def _poller(self) -> None:

@@ -5,7 +5,7 @@
 
 # dry_run = 只打印不发送（先用这个试）
 # live    = 真的发到微信
-mode: dry_run
+mode: live
 
 listen:
   # 只回这些人。必须和微信里的昵称一字不差。
