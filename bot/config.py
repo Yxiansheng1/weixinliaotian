@@ -37,6 +37,7 @@ DEFAULTS: dict[str, Any] = {
         "max_typing": 7.0,
         "split_long_reply": True,      # 长回复拆成多条发
         "max_bubble_chars": 55,
+        "max_bubbles": 4,              # 一条回复最多拆成几条
         "bubble_gap": [0.7, 1.8],      # 两条消息之间的间隔
         "reply_probability": 1.0,      # <1 表示偶尔"没看见"
         "quiet_hours": [],             # 例如 ["01:00", "07:30"]，期间不回

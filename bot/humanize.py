@@ -36,16 +36,21 @@ def bubble_gap(cfg: dict) -> float:
 
 
 def split_reply(text: str, cfg: dict) -> list[str]:
-    """把长回复拆成若干条短消息，最多 4 条。"""
+    """把回复拆成若干条短消息。
+
+    两条铁律：
+    1. 模型用换行表示的"另发一条"，必须变成独立气泡；只有在单段超长时才按标点再切。
+    2. 任何气泡都不含换行，且一条字都不能丢——超过上限就并进最后一条，不截断。
+    """
     text = text.strip()
     if not text:
         return []
-    if not cfg.get("split_long_reply", True):
-        return [text]
 
-    max_chars = int(cfg.get("max_bubble_chars", 55))
-    if len(text) <= max_chars:
-        return [text]
+    if not cfg.get("split_long_reply", True):
+        return [re.sub(r"\s*\n+\s*", " ", text).strip()]
+
+    max_chars = max(10, int(cfg.get("max_bubble_chars", 55)))
+    limit = max(1, int(cfg.get("max_bubbles", 4)))
 
     bubbles: list[str] = []
     for para in re.split(r"\n+", text):
@@ -65,6 +70,7 @@ def split_reply(text: str, cfg: dict) -> list[str]:
             else:
                 if cur:
                     bubbles.append(cur.strip())
+                    cur = ""
                 # 单句仍然超长，硬切
                 while len(s) > max_chars:
                     bubbles.append(s[:max_chars])
@@ -73,15 +79,15 @@ def split_reply(text: str, cfg: dict) -> list[str]:
         if cur.strip():
             bubbles.append(cur.strip())
 
-    # 合并过多的碎片
-    merged: list[str] = []
-    for b in bubbles:
-        if merged and len(merged[-1]) + len(b) <= max_chars:
-            merged[-1] = merged[-1] + b
-        else:
-            merged.append(b)
+    bubbles = [b.strip() for b in bubbles if b.strip()]
+    if not bubbles:
+        return []
 
-    return [b for b in merged if b][:4]
+    # 超上限就并进最后一条，宁可最后一条长一点，也不能把话吃掉
+    if len(bubbles) > limit:
+        bubbles = bubbles[: limit - 1] + ["".join(bubbles[limit - 1 :])]
+
+    return bubbles
 
 
 def in_quiet_hours(cfg: dict, now: float | None = None) -> bool:

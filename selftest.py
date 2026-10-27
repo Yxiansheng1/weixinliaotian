@@ -24,7 +24,7 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 def test_split() -> None:
-    cfg = {"split_long_reply": True, "max_bubble_chars": 20}
+    cfg = {"split_long_reply": True, "max_bubble_chars": 20, "max_bubbles": 4}
     long_text = (
         "今天下午去了趟工地，业主临时改方案，把整个客厅的墙都砸了重来。"
         "我在那儿站了两个小时，鞋上全是灰。回来路上还在想这事到底怪谁。"
@@ -39,6 +39,24 @@ def test_split() -> None:
     check("短回复不拆", short == ["嗯，我也刚到家"], str(short))
 
     check("空回复", humanize.split_reply("   ", cfg) == [])
+
+    # 模型用换行分条：短文本也必须拆成多条，且气泡里不能残留换行
+    multi = "第三遍？\n\n说真的，改到第三遍基本就是他自己没想清楚\n你是真考虑过，还是被气到了"
+    mb = humanize.split_reply(multi, cfg)
+    check("换行分条被保留", len(mb) == 3, str(mb))
+    check("气泡不含换行", all("\n" not in b for b in mb), str(mb))
+    check("分条后不丢字", sum(len(b) for b in mb) == len(multi.replace("\n", "")), str(mb))
+
+    # 超过上限不能丢内容
+    many = "\n".join([f"第{i}句话在这里" for i in range(1, 8)])
+    mm = humanize.split_reply(many, cfg)
+    check("超上限条数受限", len(mm) == 4, str(len(mm)))
+    check("超上限不丢字", sum(len(b) for b in mm) == len(many.replace("\n", "")), str(mm))
+
+    # 关掉拆句时，应压成一条且没有换行
+    flat = humanize.split_reply(multi, {"split_long_reply": False})
+    check("关闭拆句只有一条", len(flat) == 1, str(flat))
+    check("关闭拆句也无换行", "\n" not in flat[0], repr(flat))
 
 
 def test_quiet() -> None:
