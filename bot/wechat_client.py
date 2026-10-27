@@ -83,15 +83,49 @@ class WeChatIO:
         log.info("消息来源：主动轮询（每 %.1f 秒）", WxParam.LISTEN_INTERVAL)
 
     def send(self, chat, text: str) -> bool:
-        try:
-            resp = chat.SendMsg(text)
-            if hasattr(resp, "get") and resp.get("status") is False:
-                log.error("发送失败：%s", resp)
+        """发送一条。窗口被关掉时自动重开再试一次。"""
+        for attempt in (1, 2):
+            try:
+                resp = chat.SendMsg(text)
+                if hasattr(resp, "get") and resp.get("status") is False:
+                    log.error("发送失败：%s", resp)
+                    return False
+                return True
+            except Exception as e:
+                if attempt == 1:
+                    log.warning("发送失败（%s），尝试重开聊天窗口后重试", type(e).__name__)
+                    reopened = self._reopen(chat)
+                    if reopened is None:
+                        log.error("聊天窗口重开失败，这条消息作废")
+                        return False
+                    chat = reopened
+                    time.sleep(0.6)
+                    continue
+                log.exception("发送异常，放弃本条")
                 return False
-            return True
-        except Exception:
-            log.exception("发送异常")
-            return False
+        return False
+
+    def _reopen(self, chat):
+        """聊天窗口被关掉后重新拉起来。"""
+        name = getattr(chat, "who", None)
+        if not name:
+            return None
+        for opener in (
+            lambda: self.wx.GetSubWindow(name),
+            lambda: (self.wx.ChatWith(name), self.wx.GetSubWindow(name))[1],
+            lambda: (self.wx.AddListenChat(nickname=name, callback=lambda *a, **k: None),
+                     self.wx.GetSubWindow(name))[1],
+        ):
+            try:
+                c = opener()
+                if c is not None:
+                    self.chats[name] = c
+                    log.info("已重新打开 %s 的聊天窗口", name)
+                    return c
+            except Exception:
+                continue
+        log.error("重开 %s 的聊天窗口失败", name)
+        return None
 
     def chat_key(self, chat, msg=None) -> str:
         try:

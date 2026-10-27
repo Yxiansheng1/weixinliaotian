@@ -70,8 +70,11 @@ class MemoryStore:
             out.append(
                 {
                     "role": "system",
-                    "content": "以下是你们之前聊过的事情的摘要（供你保持连续性，不要直接复述）：\n"
-                    + data["summary"],
+                    "content": (
+                        "这是你自己记得的、之前和对方聊过的事。把它当成你的记忆："
+                        "该接的时候就自然接上，不要念出来，也不要问对方还记不记得。\n"
+                        + data["summary"]
+                    ),
                 }
             )
         keep = self.max_turns * 2  # 一问一答算两轮

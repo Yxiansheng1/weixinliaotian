@@ -45,14 +45,14 @@ humanize:
   max_typing: 7.0
   split_long_reply: true      # 长回复拆成几条发，更像真人
   max_bubble_chars: 55        # 每条最多多少字
-  max_bubbles: 4              # 一条回复最多拆成几条（超出的并进最后一条，不丢字）
+  max_bubbles: 3              # 一条回复最多拆成几条（超出的并进最后一条，不丢字）
   bubble_gap: [0.7, 1.8]      # 两条之间的停顿
   reply_probability: 1.0      # 0.9 = 有一成概率装没看见
   quiet_hours: []             # 例如 ["01:00", "07:30"]
   allow_actions: false        # 允许 (括号旁白) 这种角色扮演写法
 
 memory:
-  max_turns: 24      # 每次喂给模型的历史轮数
-  summarize_after: 48 # 超过多少条就压成摘要，防止人设崩坏
+  max_turns: 40      # 每次喂给模型的历史轮数
+  summarize_after: 100 # 超过多少条就压成摘要，防止人设崩坏
 
 log_level: INFO

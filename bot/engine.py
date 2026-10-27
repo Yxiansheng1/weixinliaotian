@@ -276,6 +276,26 @@ class BotEngine:
         )
         messages = [{"role": "system", "content": system}] + self.memory.messages_for(key)
 
+        # 对方在重复同一句话时给个提示，否则模型会一直换汤不换药地绕圈
+        recent_user = [
+            m["content"]
+            for m in self.memory.load(key)["messages"][-10:]
+            if m["role"] == "user"
+        ]
+        times = recent_user.count(content)
+        if times >= 2:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        f"【提示】对方这句话已经说到第 {times} 遍了。不要再重复你刚才的回答，"
+                        "也不要继续追问细节。要么一次把态度说清楚，要么直接点破他在绕圈子，"
+                        "回得比平时更短。"
+                    ),
+                }
+            )
+            log.info("检测到重复发言（第 %d 遍），已加提示", times)
+
         try:
             raw = self.llm.reply(messages)
         except Exception:

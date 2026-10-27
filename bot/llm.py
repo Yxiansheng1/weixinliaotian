@@ -9,13 +9,19 @@ from openai import OpenAI
 
 log = logging.getLogger(__name__)
 
-SUMMARY_PROMPT = """把下面这段微信聊天记录压缩成不超过 180 字的事实摘要。
+SUMMARY_PROMPT = """把下面这段微信聊天记录整理成一份能用来"接着聊"的背景笔记，不超过 400 字。
 
-要求：
-- 只保留：关系进展、对方提到的重要信息（工作/生活/情绪/约定）、说好要做的事
-- 用第三人称陈述，不写"我们""你"
-- 不要评论，不要心理分析，不要建议
-- 直接输出摘要正文
+必须包含这几块，缺的就不写：
+1. 两个人的关系状态和最近的氛围（亲近/别扭/开玩笑多）
+2. 对方提到的具体信息：工作、住处、家人、身体状况、最近在忙什么
+3. 没说完的事、答应了还没做的、说好以后再提的
+4. 对方反复提的事、明显的情绪（在烦什么、在高兴什么）
+5. 双方用过的称呼、梗、玩笑
+
+写法要求：
+- 用第三人称陈述，像便签一样一句一条，不要成段议论
+- 只写记录里出现过的内容，不要推测，不要心理分析，不要建议
+- 直接输出笔记正文
 
 聊天记录：
 {history}"""
@@ -57,7 +63,7 @@ class ChatLLM:
                 {"role": "user", "content": SUMMARY_PROMPT.format(history=history_text)}
             ],
             temperature=0.3,
-            max_tokens=400,
+            max_tokens=800,
         )
         return (resp.choices[0].message.content or "").strip()
 
