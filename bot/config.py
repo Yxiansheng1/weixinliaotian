@@ -26,10 +26,13 @@ DEFAULTS: dict[str, Any] = {
         "base_url": "https://www.tokenav.ai/v1",
         "model": "deepseek-v4-pro",
         "temperature": 1.1,
-        "max_tokens": 300,
+        "max_tokens": 3000,
         "api_key_env": "DEEPSEEK_API_KEY",
-        "timeout": 60,
+        "timeout": 120,
         "penalties": True,
+        # 这个模型默认会先内部推理。max_tokens 必须留够，
+        # 否则推理把额度吃光，正文被截断甚至返回空（表现为"说话没脑子"）。
+        "reasoning_effort": "high",
     },
     "humanize": {
         "read_delay": [0.6, 1.8],      # 收到消息后先"看一眼"的时间

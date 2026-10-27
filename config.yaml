@@ -1,4 +1,4 @@
-# ============================================
+﻿# ============================================
 #  微信陪聊机器人配置
 #  改完不用重启微信，但要重启本程序（Ctrl+C 再 python run.py）
 # ============================================
@@ -33,9 +33,13 @@ llm:
                                #              deepseek-v4.1-flash / deepseek-v4.1-flash-1017
                                # 想省钱换 v4.1-flash，想更细换 v4-pro
   temperature: 1.1
-  max_tokens: 300
+  max_tokens: 3000
+  # 这个模型带"思考"：会先内部推理再回答。max_tokens 必须留够，
+  # 否则推理把额度吃光，正文被截断甚至返回空——表现就是说话没脑子、上句不接下句。
+  # none=不思考（最快最省）、low/medium/high=思考程度
+  reasoning_effort: high
   api_key_env: DEEPSEEK_API_KEY   # 去 .env 里填这个变量
-  timeout: 60
+  timeout: 120
   penalties: true              # 个别中转站不接受这两个参数，报 400 就设成 false
 
 humanize:

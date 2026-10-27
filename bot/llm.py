@@ -37,6 +37,10 @@ class ChatLLM:
             timeout=cfg.get("timeout", 60),
             max_retries=2,
         )
+        # 这个模型是"带思考"的：不关掉的话，内部推理会先把 max_tokens 吃掉，
+        # 导致正经回答被截断甚至返回空——这是最初"说话没脑子"的真正原因。
+        self._send_reasoning = bool(cfg.get("reasoning_effort"))
+        self._reasoning_off = False
 
     def reply(self, messages: list[dict]) -> str:
         """生成一条回复。失败抛异常，由上层决定怎么兜底。"""
@@ -44,27 +48,60 @@ class ChatLLM:
             "model": self.model,
             "messages": messages,
             "temperature": float(self.cfg.get("temperature", 1.1)),
-            "max_tokens": int(self.cfg.get("max_tokens", 300)),
+            "max_tokens": int(self.cfg.get("max_tokens", 800)),
         }
         # 中转站对"多出来的参数"容忍度不一，个别会直接 400，做成可关
         if self.cfg.get("penalties", True):
             params["presence_penalty"] = float(self.cfg.get("presence_penalty", 0.3))
             params["frequency_penalty"] = float(self.cfg.get("frequency_penalty", 0.3))
+        if self._send_reasoning and not self._reasoning_off:
+            params["reasoning_effort"] = self.cfg["reasoning_effort"]
 
-        resp = self.client.chat.completions.create(**params)
-        text = (resp.choices[0].message.content or "").strip()
+        try:
+            resp = self.client.chat.completions.create(**params)
+        except Exception as e:
+            msg = str(e).lower()
+            if "reasoning_effort" in msg or "reasoning" in msg:
+                log.warning("接口不接受 reasoning_effort，本次及以后不再发送")
+                self._reasoning_off = True
+                params.pop("reasoning_effort", None)
+                resp = self.client.chat.completions.create(**params)
+            else:
+                raise
+
+        choice = resp.choices[0]
+        text = (choice.message.content or "").strip()
+
+        # 被截断时留个痕迹，方便以后排查
+        if not text:
+            u = getattr(resp, "usage", None)
+            reason = getattr(u, "completion_tokens_details", None)
+            think = getattr(reason, "reasoning_tokens", "?") if reason else "?"
+            log.warning(
+                "模型返回空内容｜finish=%s｜completion=%s｜reasoning=%s｜检查 max_tokens 是否被思考吃光",
+                choice.finish_reason,
+                getattr(u, "completion_tokens", "?"),
+                think,
+            )
+        elif choice.finish_reason == "length":
+            log.warning("回复被 max_tokens 截断：%r", text[:40])
+
         return text
 
     def summarize(self, history_text: str) -> str:
         """把旧对话压成摘要，用于长期记忆。"""
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=[
+        params = {
+            "model": self.model,
+            "messages": [
                 {"role": "user", "content": SUMMARY_PROMPT.format(history=history_text)}
             ],
-            temperature=0.3,
-            max_tokens=800,
-        )
+            "temperature": 0.3,
+            "max_tokens": 2000,
+        }
+        # 摘要不需要思考，省时间也省钱
+        if self._send_reasoning and not self._reasoning_off:
+            params["reasoning_effort"] = "none"
+        resp = self.client.chat.completions.create(**params)
         return (resp.choices[0].message.content or "").strip()
 
     def list_models(self) -> list[str]:
