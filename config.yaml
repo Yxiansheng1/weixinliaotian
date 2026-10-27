@@ -24,13 +24,14 @@ listen:
 persona: personas/default.md
 
 llm:
-  provider: deepseek
-  base_url: https://api.deepseek.com
-  model: deepseek-chat
+  provider: relay              # 官方直连 / 中转站都行，走 OpenAI 兼容协议
+  base_url: https://www.tokenav.ai/v1
+  model: deepseek-chat         # 中转站的模型名可能和官方不同，用 probe.py --models 查
   temperature: 1.1
   max_tokens: 300
   api_key_env: DEEPSEEK_API_KEY   # 去 .env 里填这个变量
   timeout: 60
+  penalties: true              # 个别中转站不接受这两个参数，报 400 就设成 false
 
 humanize:
   read_delay: [0.6, 1.8]      # 收到后先"看一眼"的秒数

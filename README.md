@@ -48,7 +48,26 @@ copy .env.example .env
 notepad .env
 ```
 
-去 [DeepSeek 开放平台](https://platform.deepseek.com/) 拿个 key 填进去。用 OpenAI 也行，改 `config.yaml` 里的 `base_url` / `model` / `api_key_env`。
+现在配的是中转站 `tokenav`（`https://www.tokenav.ai/v1`），key 就用它后台生成的那个，填进 `DEEPSEEK_API_KEY`。
+
+换了中转站或直连官方，改 `config.yaml` 里三行就行：
+
+```yaml
+llm:
+  base_url: https://www.tokenav.ai/v1
+  model: deepseek-chat
+  api_key_env: DEEPSEEK_API_KEY
+```
+
+不确定中转站给的模型名是什么，跑这条查：
+
+```powershell
+python probe.py --models
+```
+
+它会把接口里所有可用模型列出来，并标出当前配置用的那个。把 `model` 改成列表里的名字再重跑。
+
+中转站报 `400` 且提示参数不支持，就把 `llm.penalties` 设成 `false`——有些中转不接受 `presence_penalty` / `frequency_penalty`。
 
 ### 3. 填白名单
 
@@ -182,6 +201,12 @@ memory:
 **微信更新后失效**
 `wxauto4` 依赖客户端的 UI 结构。微信大版本更新大概率要等库更新。
 建议关掉微信自动更新，或者更新前先备份这个环境。
+
+**中转站报错 / 模型名不对**
+先 `python probe.py --models` 把可用模型列出来对照。常见错的三种：
+- `model` 写的是官方名（如 `deepseek-chat`），中转那边叫 `deepseek-v3` 之类
+- `base_url` 少了 `/v1`
+- 报 400 说参数不支持 → `llm.penalties: false`
 
 **它说话越来越像 AI**
 1. 调低 `max_tokens`（300 → 200）

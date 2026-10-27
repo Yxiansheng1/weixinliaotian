@@ -34,14 +34,18 @@ class ChatLLM:
 
     def reply(self, messages: list[dict]) -> str:
         """生成一条回复。失败抛异常，由上层决定怎么兜底。"""
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=float(self.cfg.get("temperature", 1.1)),
-            max_tokens=int(self.cfg.get("max_tokens", 300)),
-            presence_penalty=0.3,
-            frequency_penalty=0.3,
-        )
+        params = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": float(self.cfg.get("temperature", 1.1)),
+            "max_tokens": int(self.cfg.get("max_tokens", 300)),
+        }
+        # 中转站对"多出来的参数"容忍度不一，个别会直接 400，做成可关
+        if self.cfg.get("penalties", True):
+            params["presence_penalty"] = float(self.cfg.get("presence_penalty", 0.3))
+            params["frequency_penalty"] = float(self.cfg.get("frequency_penalty", 0.3))
+
+        resp = self.client.chat.completions.create(**params)
         text = (resp.choices[0].message.content or "").strip()
         return text
 
@@ -56,6 +60,18 @@ class ChatLLM:
             max_tokens=400,
         )
         return (resp.choices[0].message.content or "").strip()
+
+    def list_models(self) -> list[str]:
+        """列出这个接口下可用的模型名。中转站的模型名常和官方不一样，得实测。"""
+        try:
+            page = self.client.models.list()
+            return sorted({m.id for m in page.data})
+        except Exception:
+            # 有些中转不实现 /models，用原生请求再试一次
+            resp = self.client._client.get("/models")
+            data = resp.json()
+            items = data.get("data", data if isinstance(data, list) else [])
+            return sorted({str(m.get("id")) for m in items if m.get("id")})
 
 
 # ---------- 输出清洗：把模型偶尔冒出来的"AI 味"剪掉 ----------

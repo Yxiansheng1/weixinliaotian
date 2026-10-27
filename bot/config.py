@@ -21,13 +21,14 @@ DEFAULTS: dict[str, Any] = {
     },
     "persona": "personas/default.md",
     "llm": {
-        "provider": "deepseek",
-        "base_url": "https://api.deepseek.com",
+        "provider": "relay",
+        "base_url": "https://www.tokenav.ai/v1",
         "model": "deepseek-chat",
         "temperature": 1.1,
         "max_tokens": 300,
         "api_key_env": "DEEPSEEK_API_KEY",
         "timeout": 60,
+        "penalties": True,
     },
     "humanize": {
         "read_delay": [0.6, 1.8],      # 收到消息后先"看一眼"的时间

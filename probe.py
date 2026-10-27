@@ -20,12 +20,33 @@ OK, BAD, WARN = "[ OK ]", "[FAIL]", "[WARN]"
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--skip-llm", action="store_true")
+    ap.add_argument("--models", action="store_true", help="列出中转/官方接口下可用的模型名，然后退出")
     ap.add_argument("--config", default=None)
     args = ap.parse_args()
 
     logmod.setup("WARNING")
     s = config.load(args.config)
     fails = 0
+
+    if args.models:
+        if not s.api_key:
+            print(f"[FAIL] 没读到 API Key，先建 .env 填 {s.llm.get('api_key_env')}=...")
+            return 1
+        print(f"接口：{s.llm.get('base_url') or '（官方默认）'}")
+        try:
+            names = ChatLLM(s.llm, s.api_key).list_models()
+        except Exception as e:
+            print(f"[FAIL] 拉不到模型列表：{type(e).__name__}: {e}")
+            return 1
+        if not names:
+            print("[WARN] 接口返回了空列表")
+            return 1
+        print(f"可用模型 {len(names)} 个：\n")
+        for n in names:
+            mark = "  ← 当前配置" if n == s.llm.get("model") else ""
+            print(f"  {n}{mark}")
+        print("\n把 config.yaml 里 llm.model 改成上面某一个，再跑 probe.py。")
+        return 0
 
     def report(ok: bool, title: str, detail: str = "", warn_only: bool = False):
         nonlocal fails
@@ -109,9 +130,19 @@ def main() -> int:
             out = client.reply(
                 [{"role": "user", "content": "只回复两个字：收到"}]
             )
-            report(True, f"模型可用（{s.llm.get('model')}）", f"返回：{out[:40]}")
+            report(
+                True,
+                f"模型可用（{s.llm.get('model')} @ {s.llm.get('base_url') or '官方'}）",
+                f"返回：{out[:40]}",
+            )
         except Exception as e:
-            report(False, "模型调用失败", f"{type(e).__name__}: {e}")
+            report(
+                False,
+                f"模型调用失败（{s.llm.get('model')} @ {s.llm.get('base_url') or '官方'}）",
+                f"{type(e).__name__}: {e}\n"
+                "如果是中转站：先跑 python probe.py --models 看模型名对不对；\n"
+                "还不行就试试 config.yaml 里 llm.penalties 设成 false。",
+            )
 
     print()
     if fails:
